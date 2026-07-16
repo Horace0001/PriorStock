@@ -1,0 +1,53 @@
+{
+  "embedding_dimension": 3072,
+  "embedding_file_paths": [
+    "factor_embeddings_000.npy",
+    "factor_embeddings_001.npy",
+    "factor_embeddings_002.npy",
+    "factor_embeddings_003.npy",
+    "factor_embeddings_004.npy"
+  ],
+  "embedding_model_name": "text-embedding-3-large",
+  "factor_count": 5,
+  "index_file_path": "factor_embedding_index.jsonl",
+  "record_count": 98180,
+  "shard_row_offsets": [
+    0,
+    24000,
+    48000,
+    72000,
+    96000
+  ],
+  "shards": [
+    {
+      "path": "factor_embeddings_000.npy",
+      "row_count": 24000,
+      "row_offset": 0,
+      "sha256": "62e13f98fe1b0345d1564e5652cdfc44ec4a263bf991b0b6f34c2c6aa52a85b4"
+    },
+    {
+      "path": "factor_embeddings_001.npy",
+      "row_count": 24000,
+      "row_offset": 24000,
+      "sha256": "5ba1bdd22563390367e7b8f8c25c82e543aaeb3d0aebaf091cd12cc2371fe11a"
+    },
+    {
+      "path": "factor_embeddings_002.npy",
+      "row_count": 24000,
+      "row_offset": 48000,
+      "sha256": "13d466544e8ae6b1392a9e8c53773d3ed789460897f231cdcdb088e15a093c46"
+    },
+    {
+      "path": "factor_embeddings_003.npy",
+      "row_count": 24000,
+      "row_offset": 72000,
+      "sha256": "9885313170e898f7f949f1c30e320db027fec9756cbdaf2f88c3b02f6b8febb0"
+    },
+    {
+      "path": "factor_embeddings_004.npy",
+      "row_count": 2180,
+      "row_offset": 96000,
+      "sha256": "0dcd07cf7c2201497598656a793d2e2a160a5a229e52e72b67ca6c76cd07c924"
+    }
+  ]
+}

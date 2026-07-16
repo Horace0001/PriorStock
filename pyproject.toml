@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "priorstock"
+version = "1.0.0"
+requires-python = "==3.12.*"
+dependencies = [
+  "numpy==2.2.4",
+  "pandas==2.3.2",
+  "PyYAML==6.0.1",
+  "requests==2.32.5",
+  "scikit-learn==1.6.1",
+  "scipy==1.15.2",
+  "torch==2.5.1+cu121",
+  "transformers==4.57.3",
+  "wandb==0.26.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["priorstock*"]

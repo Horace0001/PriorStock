@@ -1,0 +1,344 @@
+experiment:
+  experiment_name: cmin_us_factor
+  architecture_tag: post_temporal_factor_gate256_mlp128
+  market_name: CMIN-US
+  run_output_root: runs
+  artifact_output_root: data
+  random_seed: 7
+  device: cuda
+paths:
+  dataset_root: data/raw
+  price_raw_subdirectory: price/raw
+  price_preprocessed_subdirectory: price/processed
+  news_raw_subdirectory: news/raw
+  news_preprocessed_subdirectory: news/preprocessed
+  processed_price_subdirectory: processed_price
+  aligned_news_subdirectory: aligned_news
+  sample_index_subdirectory: sample_index
+  tech_text_output_subdirectory: tech_text_output
+  tech_text_validation_subdirectory: tech_text_validation
+  tech_embedding_subdirectory: tech_embedding
+  news_embedding_subdirectory: news_embedding
+  checkpoint_subdirectory: checkpoints
+  metrics_subdirectory: metrics
+data:
+  market_code: CMIN-US
+  effective_close_column_name: Adj Close
+  should_adjust_ohlc_with_effective_close: true
+  date_column_name: Date
+  open_column_name: Open
+  high_column_name: High
+  low_column_name: Low
+  close_column_name: Close
+  volume_column_name: Volume
+  us_news_separator: "\t"
+  cn_news_excel_sheet_name: Sheet1
+  cn_name_mapping_strategy: match_preprocessed_price_by_date_and_volume
+  lookback_window_size: 30
+  label_threshold: 0.005
+  train_start_date: 2018-02-14
+  train_end_date: 2020-06-30
+  validation_start_date: 2020-07-01
+  validation_end_date: 2020-12-31
+  test_start_date: 2021-01-01
+  test_end_date: 2021-12-31
+  split_on_target_date_only: true
+  trading_calendar_mode: price_index_only
+  minimum_indicator_history_mode: expanding_available_history
+  use_binary_up_vs_non_up_labeling: true
+  use_dynamic_volatility_aware_three_class_labeling: false
+  dynamic_label_minimum_absolute_return: 0.001
+  dynamic_label_volatility_scale: 0.15
+  dynamic_label_volatility_window: 20
+indicator:
+  moving_average_windows:
+  - 5
+  - 10
+  - 20
+  - 30
+  - 60
+  macd_fast_span: 12
+  macd_slow_span: 26
+  macd_signal_span: 9
+  kdj_lookback_period: 9
+  kdj_initial_k: 50.0
+  kdj_initial_d: 50.0
+  kdj_smoothing_alpha: 0.3333333333333333
+  rsi_windows:
+  - 6
+  - 12
+  - 24
+  bollinger_window: 20
+  bollinger_standard_deviation_multiplier: 2.0
+  volume_ratio_window: 20
+  epsilon: 1.0e-12
+text_generation:
+  system_prompt_path: prompts/technical_indicator_system_prompt.txt
+  user_prompt_path: prompts/technical_indicator_user_prompt.txt
+  api_base_url: http://localhost
+  api_model_name: unused
+  api_key_environment_variable: UNUSED_API_KEY
+  requests_per_second: 80
+  max_worker_count: 256
+  request_timeout_seconds: 60
+  max_retry_attempt_count: 8
+  initial_retry_delay_seconds: 1.0
+  retry_backoff_multiplier: 2.0
+  retryable_status_codes:
+  - 403
+  - 408
+  - 409
+  - 425
+  - 429
+  - 500
+  - 502
+  - 503
+  - 504
+  - 520
+  - 522
+  - 524
+  max_consecutive_failure_count: 20
+  generation_checkpoint_file_name: technical_text_generation_progress.json
+  generation_failure_log_file_name: technical_text_generation_failures.jsonl
+  sample_validation_size: 50
+  save_every_response_count: 10
+  minimum_output_word_count: 180
+  maximum_output_word_count: 280
+  banned_phrases:
+  - bullish
+  - bearish
+  - buy
+  - sell
+  - likely
+  - expected
+  - signal
+  validation_random_seed: 7
+  bandwidth_validation_tolerance: 0.005
+  percent_b_validation_tolerance: 0.02
+  require_zero_digit_output: true
+  forbid_number_word_output: false
+  require_single_paragraph_output: true
+  require_local_indicator_consistency_check: true
+  enable_word_count_check: true
+  require_all_samples_to_pass: true
+  enable_full_generation_after_validation: true
+technical_text_encoder:
+  backend_type: huggingface_transformers
+  pretrained_model_name: intfloat/e5-mistral-7b-instruct
+  api_base_url: null
+  api_model_name: null
+  api_key_environment_variable: null
+  tokenizer_max_length: 512
+  encoder_batch_size: 48
+  cache_device: cuda
+  local_model_cache_directory: data/model_cache
+  output_embedding_dim: 4096
+  pooling_strategy: last_token
+  normalize_embeddings: true
+  model_dtype: bfloat16
+  instruction_prefix: 'Instruct: Encode the one-day-ahead predictive edge in this
+    qualitative technical diagnosis, not the prevailing trend direction alone. Distinguish
+    confirmed upside follow-through, bearish reversal or downside follow-through,
+    and mixed low-edge equilibrium by prioritizing divergence, loss of thrust, oscillator
+    confirmation or disagreement, volatility at extremes, and whether the final synthesis
+    strengthens or undermines the current trend.
+
+    Query: '
+  requests_per_second: 1
+  request_timeout_seconds: 60
+  max_retry_attempt_count: 1
+  initial_retry_delay_seconds: 1.0
+  retry_backoff_multiplier: 1.0
+  retryable_status_codes:
+  - 500
+  max_consecutive_failure_count: 1
+  save_every_record_count: 10
+  checkpoint_file_name: technical_embedding_progress.json
+  failure_log_file_name: technical_embedding_failures.jsonl
+  quota_exhaustion_error_codes:
+  - insufficient_user_quota
+news_encoder:
+  backend_type: huggingface_transformers
+  pretrained_model_name: csebuetnlp/mT5_multilingual_XLSum
+  api_base_url: null
+  api_model_name: null
+  api_key_environment_variable: null
+  tokenizer_max_length: 512
+  encoder_batch_size: 16
+  cache_device: cuda
+  local_model_cache_directory: data/model_cache
+  output_embedding_dim: 768
+  pooling_strategy: mean
+  normalize_embeddings: false
+  model_dtype: float32
+  instruction_prefix: ''
+  requests_per_second: 1
+  request_timeout_seconds: 60
+  max_retry_attempt_count: 1
+  initial_retry_delay_seconds: 1.0
+  retry_backoff_multiplier: 1.0
+  retryable_status_codes:
+  - 500
+  max_consecutive_failure_count: 1
+  save_every_record_count: 10
+  checkpoint_file_name: news_embedding_progress.json
+  failure_log_file_name: news_embedding_failures.jsonl
+  quota_exhaustion_error_codes:
+  - insufficient_user_quota
+model:
+  framework_variant_name: ohlcv124_group_token_mixer_attention_side_adapter_factor_concat_logit_classifier_v1
+  input_price_feature_count: 5
+  technical_indicator_feature_count: 124
+  technical_indicator_representation_dim: 128
+  technical_indicator_mlp_hidden_dim: 64
+  use_group_specific_technical_indicator_mlp_hidden_dims: false
+  technical_indicator_group_mlp_hidden_dims:
+  - 64
+  - 64
+  - 64
+  - 64
+  - 64
+  - 64
+  - 64
+  - 64
+  - 64
+  technical_indicator_group_mlp_dropout_probability: 0.0
+  use_controlled_technical_indicator_global_mixer: false
+  technical_indicator_global_mixer_hidden_dim: 128
+  technical_indicator_global_mixer_dropout_probability: 0.0
+  technical_indicator_global_mixer_residual_alpha_initial_value: 1.0
+  use_vector_technical_indicator_global_mixer_residual_alpha: false
+  technical_indicator_group_token_dim: 32
+  technical_indicator_group_token_mixer_layer_count: 1
+  technical_indicator_group_token_mixer_head_count: 4
+  technical_indicator_group_token_mixer_feed_forward_dim: 64
+  technical_indicator_group_token_mixer_dropout_probability: 0.0
+  use_technical_indicator_group_identity_embedding: true
+  d_model: 192
+  d_ff: 384
+  num_layers: 2
+  num_heads: 6
+  num_classes: 1
+  dropout_probability: 0.1
+  gate_hidden_dim: 256
+  use_raw_technical_indicator_branch: true
+  use_technical_indicator_sequence_as_main_modality: true
+  use_news_only_auxiliary_branch: false
+  use_technical_indicator_pre_layer_norm: true
+  tech_gate_bias_initial_value: 0.0
+  news_gate_bias_initial_value: -1.0
+  positional_embedding_initialization_std: 0.02
+  no_news_embedding_initialization_std: 0.02
+  use_post_injection_layer_norm: false
+  use_layer_specific_text_projections: false
+  trace_layer_specific_projected_text_features: false
+  disable_outer_no_news_placeholder_embedding: true
+  use_block_level_news_hard_mask: true
+  use_shared_text_bottlenecks: false
+  shared_text_bottleneck_dim: 256
+  use_pre_projection_input_dropout: false
+  input_dropout_probability: 0.2
+training:
+  batch_size: 64
+  num_data_loader_workers: 0
+  pin_memory: true
+  num_epochs: 2
+  learning_rate: 0.0001
+  minimum_learning_rate: 1.0e-06
+  scheduler_cosine_t_max_epoch_count: 40
+  adam_beta_one: 0.9
+  adam_beta_two: 0.98
+  adam_epsilon: 1.0e-08
+  weight_decay: 0.01
+  label_smoothing: 0.0
+  use_soft_macro_f1_loss: false
+  soft_macro_f1_loss_weight: 0.0
+  soft_macro_f1_epsilon: 1.0e-08
+  tech_gate_regularization_weight: 0.0
+  news_gate_regularization_weight: 0.0
+  use_technical_indicator_auxiliary_contrastive_loss: false
+  technical_indicator_auxiliary_loss_weight: 0.0
+  technical_indicator_auxiliary_positive_class_index: 0
+  technical_indicator_auxiliary_negative_class_index: 0
+  technical_indicator_auxiliary_negative_similarity_margin: 0.0
+  resume_from_latest_checkpoint: true
+  latest_checkpoint_file_name: latest_training_state.pt
+  gradient_clip_max_norm: 1.0
+  early_stopping_patience: 2
+evaluation:
+  primary_metric_name: mcc
+  checkpoint_selection_uses_composite_score: true
+  checkpoint_selection_macro_f1_weight: 0.25
+  checkpoint_selection_mcc_weight: 1.0
+  up_class_label_index: 1
+logging:
+  use_wandb: false
+  wandb_project_name: anonymous-reproduction
+  wandb_entity_name: null
+  wandb_mode: disabled
+  log_every_training_step_count: 10
+  log_gradient_statistics: false
+  log_tensor_shapes: false
+  log_first_batch_tensor_statistics: false
+  log_activation_distributions: false
+  log_attention_distributions: false
+  log_gradient_distributions: false
+  log_parameter_value_distributions: false
+  log_histograms_to_wandb: false
+  distribution_log_every_training_step_count: 10
+  distribution_summary_subdirectory: distribution_diagnostics
+  distribution_trace_file_name: step_distribution_traces.jsonl
+  max_distribution_summary_sample_count: 50000
+  max_histogram_sample_count: 50000
+  tensor_statistics_output_file_name: tensor_diagnostics.json
+attention_side_adapter:
+  adapter_rank: 32
+  adapter_dropout_probability: 0.15
+  alpha_initial_value: 0.2
+  should_replace_attention_update_with_adapter_delta: false
+  condition_projection_initialization_std: 0.002
+  up_projection_initialization_std: 0.006
+  scale_control_target_ratio: 0.5
+  scale_control_max_scale: 5.0
+  scale_control_epsilon: 1.0e-06
+single_logit_binary_classification:
+  should_use_return_soft_targets: false
+  should_resplit_by_config_dates: true
+  should_evaluate_unfiltered_test_split: true
+  return_soft_label_temperature: 0.005
+  significant_return_absolute_threshold: 0.01
+  adapter_learning_rate_multiplier: 0.75
+  adapter_freeze_epoch_count: 0
+  checkpoint_selection_mcc_weight: 1.0
+  checkpoint_selection_balanced_accuracy_weight: 0.5
+  checkpoint_selection_macro_f1_weight: 0.25
+  degenerate_high_prediction_up_ratio: 0.75
+  degenerate_low_prediction_up_ratio: 0.3
+  degenerate_recall_gap_threshold: 0.35
+  near_boundary_probability_margin: 0.05
+  calibration_bin_count: 10
+  return_bucket_absolute_thresholds:
+  - 0.001
+  - 0.002
+  - 0.005
+  - 0.01
+  large_return_absolute_thresholds:
+  - 0.01
+  - 0.02
+  checkpoint_selection_accuracy_weight: 0.0
+  checkpoint_selection_split_name: validation
+  checkpoint_selection_epoch_limit: 0
+  should_evaluate_full_splits_each_epoch: false
+  omitted_evaluation_iterator_count: 3
+  fixed_checkpoint_epoch: 2
+factor_concat_logit_classifier:
+  base_checkpoint_file_path: weights/cmin_us/base.pt
+  factor_embedding_cache_directory: data/cmin_us/factor_embedding_cache
+  factor_count: 5
+  factor_input_dim: 3072
+  factor_projector_hidden_dim: 512
+  classifier_hidden_dim: 128
+  attention_head_count: 4
+  dropout_probability: 0.15
+  soft_mcc_loss_weight: 0.1
+  soft_metric_loss_epsilon: 1.0e-08

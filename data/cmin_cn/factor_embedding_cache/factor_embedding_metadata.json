@@ -1,0 +1,101 @@
+{
+  "embedding_dimension": 3072,
+  "embedding_file_paths": [
+    "factor_embeddings_000.npy",
+    "factor_embeddings_001.npy",
+    "factor_embeddings_002.npy",
+    "factor_embeddings_003.npy",
+    "factor_embeddings_004.npy",
+    "factor_embeddings_005.npy",
+    "factor_embeddings_006.npy",
+    "factor_embeddings_007.npy",
+    "factor_embeddings_008.npy",
+    "factor_embeddings_009.npy",
+    "factor_embeddings_010.npy"
+  ],
+  "embedding_model_name": "text-embedding-3-large",
+  "factor_count": 5,
+  "index_file_path": "factor_embedding_index.jsonl",
+  "record_count": 251729,
+  "shard_row_offsets": [
+    0,
+    24000,
+    48000,
+    72000,
+    96000,
+    120000,
+    144000,
+    168000,
+    192000,
+    216000,
+    240000
+  ],
+  "shards": [
+    {
+      "path": "factor_embeddings_000.npy",
+      "row_count": 24000,
+      "row_offset": 0,
+      "sha256": "f2d68e116594b7a89a0ab5c0eea4fc024f84d1cfe01e884cb9e89dc090bb5f70"
+    },
+    {
+      "path": "factor_embeddings_001.npy",
+      "row_count": 24000,
+      "row_offset": 24000,
+      "sha256": "9546c5dab0649737a36b1f30a28751bb15f6cb5562a6ed29da095beb6205ff4b"
+    },
+    {
+      "path": "factor_embeddings_002.npy",
+      "row_count": 24000,
+      "row_offset": 48000,
+      "sha256": "b971753fdcf0c27d27ba09549fba83f93d0d553a6d3a0da0d799024cff4e50df"
+    },
+    {
+      "path": "factor_embeddings_003.npy",
+      "row_count": 24000,
+      "row_offset": 72000,
+      "sha256": "dc0295e92d0b2991ba5eefa2aa25a53bc2c2cf379aadfc05c211482dff852376"
+    },
+    {
+      "path": "factor_embeddings_004.npy",
+      "row_count": 24000,
+      "row_offset": 96000,
+      "sha256": "2d190cf7e22d950d973996fbf7aef05570c66460624a3018ee53570a52a6e7db"
+    },
+    {
+      "path": "factor_embeddings_005.npy",
+      "row_count": 24000,
+      "row_offset": 120000,
+      "sha256": "16d1d240b07e07ee90fc161746477d8c1253c5b6a3b21090e32ef7d1e1c317bc"
+    },
+    {
+      "path": "factor_embeddings_006.npy",
+      "row_count": 24000,
+      "row_offset": 144000,
+      "sha256": "04e53074f0ef013ea7d0a5ea434d4c8f3da5769297888a4974b4dac6517ba5d5"
+    },
+    {
+      "path": "factor_embeddings_007.npy",
+      "row_count": 24000,
+      "row_offset": 168000,
+      "sha256": "1d62633d249b89e246a0f7918b19bf06e9d4dcf53d7b5a9b257bfc967b5a791a"
+    },
+    {
+      "path": "factor_embeddings_008.npy",
+      "row_count": 24000,
+      "row_offset": 192000,
+      "sha256": "2c160f18de758c578fe7df420122001f2c7b5b33b725323be298c7ae7fe93426"
+    },
+    {
+      "path": "factor_embeddings_009.npy",
+      "row_count": 24000,
+      "row_offset": 216000,
+      "sha256": "7f936c094008d6a6d61f408bb0a491247b69c717a2facbb5620932c6e6e1f722"
+    },
+    {
+      "path": "factor_embeddings_010.npy",
+      "row_count": 11729,
+      "row_offset": 240000,
+      "sha256": "ad1b76d7793e7f0b50c6210e5dd91b571cf3ff9d88bc56c3867f0cc6593fd857"
+    }
+  ]
+}

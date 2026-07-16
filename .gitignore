@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.log
+.venv/
+.env*
+runs/
+data/model_cache/
+wandb/
