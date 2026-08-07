@@ -310,8 +310,8 @@ single_logit_binary_classification:
   adapter_learning_rate_multiplier: 0.75
   adapter_freeze_epoch_count: 0
   checkpoint_selection_mcc_weight: 1.0
-  checkpoint_selection_balanced_accuracy_weight: 0.5
-  checkpoint_selection_macro_f1_weight: 0.25
+  checkpoint_selection_balanced_accuracy_weight: 0.0
+  checkpoint_selection_macro_f1_weight: 0.0
   degenerate_high_prediction_up_ratio: 0.75
   degenerate_low_prediction_up_ratio: 0.3
   degenerate_recall_gap_threshold: 0.35
@@ -325,7 +325,7 @@ single_logit_binary_classification:
   large_return_absolute_thresholds:
   - 0.01
   - 0.02
-  checkpoint_selection_accuracy_weight: 0.0
+  checkpoint_selection_accuracy_weight: 1.0
   checkpoint_selection_split_name: validation
   checkpoint_selection_epoch_limit: 0
   should_evaluate_full_splits_each_epoch: false

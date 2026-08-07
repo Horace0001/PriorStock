@@ -353,6 +353,10 @@ factor_noise_aware_training:
   checkpoint_selection_metric_name: selection_score
   checkpoint_selection_mcc_weight: 1.0
   checkpoint_selection_accuracy_weight: 0.0
+  checkpoint_selection_balanced_accuracy_weight: 0.5
+  checkpoint_selection_macro_f1_weight: 0.25
+  checkpoint_selection_ece_penalty_weight: 0.5
+  checkpoint_selection_brier_penalty_weight: 0.25
   should_evaluate_full_splits_each_epoch: false
   significant_soft_mcc_loss_weight: 0.03
   mid_return_soft_mcc_loss_weight: 0.03

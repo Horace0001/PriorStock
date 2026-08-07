@@ -93,6 +93,10 @@ class FactorNoiseAwareTrainingConfig:
     checkpoint_selection_split_name: str | None = None
     checkpoint_selection_mcc_weight: float = 0.7
     checkpoint_selection_accuracy_weight: float = 0.3
+    checkpoint_selection_balanced_accuracy_weight: float = 0.0
+    checkpoint_selection_macro_f1_weight: float = 0.0
+    checkpoint_selection_ece_penalty_weight: float = 0.0
+    checkpoint_selection_brier_penalty_weight: float = 0.0
     checkpoint_selection_metric_name: str = "auto"
     base_checkpoint_file_path: str | None = None
     should_evaluate_full_splits_each_epoch: bool = False
@@ -256,6 +260,10 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
         "checkpoint_selection_split_name",
         "checkpoint_selection_mcc_weight",
         "checkpoint_selection_accuracy_weight",
+        "checkpoint_selection_balanced_accuracy_weight",
+        "checkpoint_selection_macro_f1_weight",
+        "checkpoint_selection_ece_penalty_weight",
+        "checkpoint_selection_brier_penalty_weight",
         "checkpoint_selection_metric_name",
         "should_evaluate_full_splits_each_epoch",
         "significant_soft_mcc_loss_weight",
@@ -324,6 +332,22 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
             raw_section.get("checkpoint_selection_accuracy_weight", 0.3),
             "checkpoint_selection_accuracy_weight",
         ),
+        checkpoint_selection_balanced_accuracy_weight=_coerce_float(
+            raw_section.get("checkpoint_selection_balanced_accuracy_weight", 0.0),
+            "checkpoint_selection_balanced_accuracy_weight",
+        ),
+        checkpoint_selection_macro_f1_weight=_coerce_float(
+            raw_section.get("checkpoint_selection_macro_f1_weight", 0.0),
+            "checkpoint_selection_macro_f1_weight",
+        ),
+        checkpoint_selection_ece_penalty_weight=_coerce_float(
+            raw_section.get("checkpoint_selection_ece_penalty_weight", 0.0),
+            "checkpoint_selection_ece_penalty_weight",
+        ),
+        checkpoint_selection_brier_penalty_weight=_coerce_float(
+            raw_section.get("checkpoint_selection_brier_penalty_weight", 0.0),
+            "checkpoint_selection_brier_penalty_weight",
+        ),
         checkpoint_selection_metric_name=str(raw_section.get("checkpoint_selection_metric_name", "auto")),
         base_checkpoint_file_path=(
             str(raw_section["base_checkpoint_file_path"])
@@ -388,9 +412,19 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
             + ", ".join(sorted(supported_selection_split_names))
             + "."
         )
-    if config.checkpoint_selection_mcc_weight < 0.0 or config.checkpoint_selection_accuracy_weight < 0.0:
+    checkpoint_reward_weights = (
+        config.checkpoint_selection_mcc_weight,
+        config.checkpoint_selection_accuracy_weight,
+        config.checkpoint_selection_balanced_accuracy_weight,
+        config.checkpoint_selection_macro_f1_weight,
+    )
+    checkpoint_penalty_weights = (
+        config.checkpoint_selection_ece_penalty_weight,
+        config.checkpoint_selection_brier_penalty_weight,
+    )
+    if any(weight < 0.0 for weight in checkpoint_reward_weights + checkpoint_penalty_weights):
         raise ConfigurationError("checkpoint selection weights must be non-negative.")
-    if config.checkpoint_selection_mcc_weight + config.checkpoint_selection_accuracy_weight <= 0.0:
+    if sum(checkpoint_reward_weights) <= 0.0:
         raise ConfigurationError("at least one checkpoint selection weight must be positive.")
     supported_selection_metric_names = {
         "auto",
@@ -428,6 +462,29 @@ def _compute_noise_aware_checkpoint_selection_score(
     """Compute the configured noise-aware checkpoint selection score."""
 
     metric_name = _resolve_noise_aware_checkpoint_selection_metric_name(noise_aware_config)
+    if metric_name == "selection_score" and (
+        noise_aware_config.checkpoint_selection_balanced_accuracy_weight > 0.0
+        or noise_aware_config.checkpoint_selection_macro_f1_weight > 0.0
+        or noise_aware_config.checkpoint_selection_ece_penalty_weight > 0.0
+        or noise_aware_config.checkpoint_selection_brier_penalty_weight > 0.0
+    ):
+        return float(
+            (noise_aware_config.checkpoint_selection_mcc_weight * metrics["mcc"])
+            + (noise_aware_config.checkpoint_selection_accuracy_weight * metrics["accuracy"])
+            + (
+                noise_aware_config.checkpoint_selection_balanced_accuracy_weight
+                * metrics["balanced_accuracy"]
+            )
+            + (
+                noise_aware_config.checkpoint_selection_macro_f1_weight
+                * metrics["macro_f1"]
+            )
+            - (noise_aware_config.checkpoint_selection_ece_penalty_weight * metrics["ece"])
+            - (
+                noise_aware_config.checkpoint_selection_brier_penalty_weight
+                * metrics["brier_score"]
+            )
+        )
     return float(metrics[metric_name])
 
 
