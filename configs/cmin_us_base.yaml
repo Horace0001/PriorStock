@@ -329,4 +329,3 @@ single_logit_binary_classification:
   checkpoint_selection_split_name: validation
   should_evaluate_full_splits_each_epoch: false
   omitted_evaluation_iterator_count: 0
-  fixed_checkpoint_epoch: 0

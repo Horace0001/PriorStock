@@ -1,0 +1,46 @@
+{
+  "cmin_cn": {
+    "embedding_dimension": 3072,
+    "embedding_index_sha256": "6122854b02a6c55856e03b6f91134b1d241ae0954e127da90449113c3a672a78",
+    "embedding_model": "text-embedding-3-large",
+    "embedding_record_count": 251729,
+    "embedding_shard_count": 11,
+    "factor_count": 5,
+    "factor_record_count": 251755,
+    "factor_record_sha256": "e4dbdcc5355488430824b5b793a77ff5d764c5dad611f04d3cb946ffc256f01e",
+    "feature_file_count": 298,
+    "llm_factor_record_count": 251729,
+    "llm_model": "deepseek-v4-flash",
+    "price_file_count": 298,
+    "sample_count": 260082,
+    "sample_index_sha256": "914e08bc7198304b4d0a9173ee4a1f3096854b06ff342aec56b3d1511607afd8",
+    "split_counts": {
+      "test": 71763,
+      "train": 151877,
+      "validation": 36442
+    },
+    "stock_count": 298
+  },
+  "cmin_us": {
+    "embedding_dimension": 3072,
+    "embedding_index_sha256": "3a5f396981d6c1fcc760ea0fec90786420f439558e0e7ef706f4b7928ce720a9",
+    "embedding_model": "text-embedding-3-large",
+    "embedding_record_count": 98180,
+    "embedding_shard_count": 5,
+    "factor_count": 5,
+    "factor_record_count": 98181,
+    "factor_record_sha256": "717045bb2daddd29cafa0d1aceed0318d35be47d6610c245243b65e161fc98ab",
+    "feature_file_count": 109,
+    "llm_factor_record_count": 98180,
+    "llm_model": "deepseek-v4-flash",
+    "price_file_count": 109,
+    "sample_count": 106601,
+    "sample_index_sha256": "9f814bf5491bbfe4c888c1e225634cb605627edee68af9fea8d74f3e8dc1a71a",
+    "split_counts": {
+      "test": 27468,
+      "train": 65181,
+      "validation": 13952
+    },
+    "stock_count": 109
+  }
+}

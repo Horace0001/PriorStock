@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from scripts.run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_adapter_single_logit import (
+from scripts.base import (
     PriorStockOHLCV124GroupedReturnAwareSingleLogitDataset,
     SingleLogitBinaryObjectiveConfig,
 )

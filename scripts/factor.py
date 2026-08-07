@@ -44,7 +44,7 @@ from priorstock.versioned.ohlcv124_group_token_mixer_attention_side_adapter_fact
     FactorConcatLogitClassifierV1,
     PriorStockOHLCV124GroupedFactorEmbeddingSingleLogitDataset,
 )
-from scripts.run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_adapter_single_logit import (
+from scripts.base import (
     ATTENTION_SIDE_ADAPTER_SECTION_NAME,
     BINARY_CLASSIFICATION_SECTION_NAME,
     SINGLE_LOGIT_SECTION_NAME,
@@ -61,9 +61,7 @@ EXPECTED_FRAMEWORK_VARIANT_NAME = (
     "ohlcv124_group_token_mixer_attention_side_adapter_factor_concat_logit_classifier_v1"
 )
 FACTOR_CONCAT_CLASSIFIER_SECTION_NAME = "factor_concat_logit_classifier"
-LOGGER = configure_logger(
-    "run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_adapter_factor_concat_logit_classifier_single_logit"
-)
+LOGGER = configure_logger("priorstock.factor")
 
 
 def _resolve_project_path(path_text: str) -> Path:
@@ -112,7 +110,7 @@ def _build_data_loader(
         ),
         expected_factor_count=factor_classifier_config.factor_count,
         expected_factor_embedding_dim=factor_classifier_config.factor_input_dim,
-        should_load_factor_embeddings=not factor_classifier_config.should_use_technical_only_ablation,
+        should_load_factor_embeddings=True,
     )
     return DataLoader(
         dataset,
@@ -187,7 +185,6 @@ def _parse_factor_concat_classifier_config(raw_section: object) -> FactorConcatL
         "soft_mcc_loss_weight",
         "soft_metric_loss_epsilon",
         "factor_projection_mode",
-        "should_use_technical_only_ablation",
     }
     single_hidden_field_names = {"classifier_hidden_dim"}
     two_hidden_field_names = {"classifier_hidden_dim_1", "classifier_hidden_dim_2"}
@@ -249,12 +246,6 @@ def _parse_factor_concat_classifier_config(raw_section: object) -> FactorConcatL
     )
     if not isinstance(raw_allow_partial_base_checkpoint_loading, bool):
         raise ConfigurationError("allow_partial_base_checkpoint_loading must be a boolean.")
-    raw_should_use_technical_only_ablation = raw_section.get(
-        "should_use_technical_only_ablation",
-        False,
-    )
-    if not isinstance(raw_should_use_technical_only_ablation, bool):
-        raise ConfigurationError("should_use_technical_only_ablation must be a boolean.")
     raw_base_trainable_scope = str(raw_section.get("base_trainable_scope", "tail"))
     if raw_should_train_base_model:
         required_joint_training_field_names = {
@@ -335,7 +326,6 @@ def _parse_factor_concat_classifier_config(raw_section: object) -> FactorConcatL
                 FACTOR_PROJECTION_MODE_MLP_THEN_ADD_RANK,
             )
         ),
-        should_use_technical_only_ablation=raw_should_use_technical_only_ablation,
     )
     if config.factor_count <= 0 or config.factor_input_dim <= 0:
         raise ConfigurationError("factor count and input dimension must be positive.")
@@ -783,9 +773,7 @@ def _fit_model(
     model: FactorConcatLogitClassifierV1,
     train_data_loader: DataLoader,
     validation_data_loader: DataLoader,
-    test_data_loader: DataLoader | None,
     validation_full_data_loader: DataLoader | None,
-    test_full_data_loader: DataLoader | None,
     experiment_config,
     objective_config: SingleLogitBinaryObjectiveConfig,
     full_objective_config: SingleLogitBinaryObjectiveConfig,
@@ -829,14 +817,9 @@ def _fit_model(
             split_name=f"validation epoch={epoch_index:03d}",
         )
         validation_full_metrics = None
-        test_full_metrics = None
         should_evaluate_validation_full = (
             objective_config.should_evaluate_full_splits_each_epoch
             or objective_config.checkpoint_selection_split_name == "validation_full"
-        )
-        should_evaluate_test_full = (
-            objective_config.should_evaluate_full_splits_each_epoch
-            or objective_config.checkpoint_selection_split_name == "test_full"
         )
         if should_evaluate_validation_full:
             if validation_full_data_loader is None:
@@ -850,44 +833,13 @@ def _fit_model(
                 positive_class_weight=positive_class_weight,
                 split_name=f"validation_full epoch={epoch_index:03d}",
             )
-        test_metrics = None
-        should_evaluate_test_significant = (
-            objective_config.should_evaluate_full_splits_each_epoch
-            or objective_config.checkpoint_selection_split_name == "test"
-        )
-        if should_evaluate_test_significant:
-            if test_data_loader is None:
-                raise ValueError("test evaluation requires test_data_loader.")
-            test_metrics = _run_factor_concat_epoch(
-                model=model,
-                data_loader=test_data_loader,
-                optimizer=None,
-                experiment_config=experiment_config,
-                objective_config=objective_config,
-                positive_class_weight=positive_class_weight,
-                split_name=f"test epoch={epoch_index:03d}",
-            )
-        if should_evaluate_test_full:
-            if test_full_data_loader is None:
-                raise ValueError("test_full evaluation requires test_full_data_loader.")
-            test_full_metrics = _run_factor_concat_epoch(
-                model=model,
-                data_loader=test_full_data_loader,
-                optimizer=None,
-                experiment_config=experiment_config,
-                objective_config=full_objective_config,
-                positive_class_weight=positive_class_weight,
-                split_name=f"test_full epoch={epoch_index:03d}",
-            )
         omitted_iterator_count = objective_config.omitted_evaluation_iterator_count
         for _ in range(omitted_iterator_count):
             torch.empty((), dtype=torch.int64).random_().item()
         checkpoint_selection = select_single_logit_checkpoint_metrics(
             validation_metrics=validation_metrics,
-            test_metrics=test_metrics,
             objective_config=objective_config,
             validation_full_metrics=validation_full_metrics,
-            test_full_metrics=test_full_metrics,
         )
         should_consider_epoch = should_consider_checkpoint_selection_epoch(
             epoch_index=epoch_index,
@@ -908,14 +860,8 @@ def _fit_model(
                 for group_index, parameter_group in enumerate(optimizer.param_groups)
             },
         }
-        if test_metrics is not None:
-            epoch_record["test"] = test_metrics
-            if objective_config.checkpoint_selection_split_name == "test":
-                epoch_record["test_checkpoint_selection"] = test_metrics
         if validation_full_metrics is not None:
             epoch_record["validation_full"] = validation_full_metrics
-        if test_full_metrics is not None:
-            epoch_record["test_full"] = test_full_metrics
         history.append(epoch_record)
         _save_checkpoint(
             latest_checkpoint_file_path,
@@ -928,11 +874,8 @@ def _fit_model(
             checkpoint_selection_metric_name=checkpoint_selection.score_name,
             checkpoint_selection_split_name=checkpoint_selection.split_name,
         )
-        fixed_checkpoint_epoch = objective_config.fixed_checkpoint_epoch
         should_save_checkpoint = (
-            epoch_index == fixed_checkpoint_epoch
-            if fixed_checkpoint_epoch > 0
-            else should_consider_epoch
+            should_consider_epoch
             and checkpoint_selection.score > best_checkpoint_selection_score
         )
         if should_save_checkpoint:
@@ -951,7 +894,7 @@ def _fit_model(
                 checkpoint_selection_metric_name=checkpoint_selection.score_name,
                 checkpoint_selection_split_name=checkpoint_selection.split_name,
             )
-        elif fixed_checkpoint_epoch == 0:
+        else:
             epochs_without_improvement += 1
         log_payload = {
             **{f"train/{key}": value for key, value in train_metrics.items()},
@@ -969,22 +912,9 @@ def _fit_model(
             "best_validation_score": best_validation_score,
             "best_checkpoint_selection_score": best_checkpoint_selection_score,
         }
-        if test_metrics is not None:
-            log_payload.update({f"test/{key}": value for key, value in test_metrics.items()})
-            if objective_config.checkpoint_selection_split_name == "test":
-                log_payload.update(
-                    {
-                        f"test_checkpoint_selection/{key}": value
-                        for key, value in test_metrics.items()
-                    }
-                )
         if validation_full_metrics is not None:
             log_payload.update(
                 {f"validation_full/{key}": value for key, value in validation_full_metrics.items()}
-            )
-        if test_full_metrics is not None:
-            log_payload.update(
-                {f"test_full/{key}": value for key, value in test_full_metrics.items()}
             )
         _safe_wandb_log(
             wandb_run,
@@ -1002,16 +932,11 @@ def _fit_model(
             should_consider_epoch,
             epochs_without_improvement,
         )
-        if (
-            fixed_checkpoint_epoch == 0
-            and epochs_without_improvement >= experiment_config.training.early_stopping_patience
-        ):
+        if epochs_without_improvement >= experiment_config.training.early_stopping_patience:
             LOGGER.info("Early stopping triggered at epoch %03d.", epoch_index)
             break
     if best_epoch == 0:
-        raise RuntimeError(
-            f"Fixed checkpoint epoch {objective_config.fixed_checkpoint_epoch} was not reached."
-        )
+        raise RuntimeError("No eligible checkpoint was selected.")
     write_json_file(run_directory / "training_history.json", history)
     return {
         "best_epoch": best_epoch,
@@ -1119,23 +1044,15 @@ def main() -> None:
     full_objective_config = replace(objective_config, significant_return_absolute_threshold=0.0)
     should_build_full_epoch_loaders = (
         objective_config.should_evaluate_full_splits_each_epoch
-        or objective_config.checkpoint_selection_split_name in {"validation_full", "test_full"}
+        or objective_config.checkpoint_selection_split_name == "validation_full"
     )
     validation_full_data_loader = None
-    test_full_data_loader = None
     if should_build_full_epoch_loaders:
         validation_full_data_loader = _build_data_loader(
             experiment_config,
             full_objective_config,
             factor_classifier_config,
             "validation",
-            False,
-        )
-        test_full_data_loader = _build_data_loader(
-            experiment_config,
-            full_objective_config,
-            factor_classifier_config,
-            "test",
             False,
         )
     base_checkpoint_file_path = _resolve_project_path(factor_classifier_config.base_checkpoint_file_path)
@@ -1159,9 +1076,7 @@ def main() -> None:
         model=model,
         train_data_loader=train_data_loader,
         validation_data_loader=validation_data_loader,
-        test_data_loader=test_data_loader,
         validation_full_data_loader=validation_full_data_loader,
-        test_full_data_loader=test_full_data_loader,
         experiment_config=experiment_config,
         objective_config=objective_config,
         full_objective_config=full_objective_config,

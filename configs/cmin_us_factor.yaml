@@ -242,7 +242,7 @@ training:
   batch_size: 64
   num_data_loader_workers: 0
   pin_memory: true
-  num_epochs: 2
+  num_epochs: 40
   learning_rate: 0.0001
   minimum_learning_rate: 1.0e-06
   scheduler_cosine_t_max_epoch_count: 40
@@ -264,7 +264,7 @@ training:
   resume_from_latest_checkpoint: true
   latest_checkpoint_file_name: latest_training_state.pt
   gradient_clip_max_norm: 1.0
-  early_stopping_patience: 2
+  early_stopping_patience: 10
 evaluation:
   primary_metric_name: mcc
   checkpoint_selection_uses_composite_score: true
@@ -330,9 +330,8 @@ single_logit_binary_classification:
   checkpoint_selection_epoch_limit: 0
   should_evaluate_full_splits_each_epoch: false
   omitted_evaluation_iterator_count: 3
-  fixed_checkpoint_epoch: 2
 factor_concat_logit_classifier:
-  base_checkpoint_file_path: weights/cmin_us/base.pt
+  base_checkpoint_file_path: runs/cmin_us/base/checkpoints/best_model.pt
   factor_embedding_cache_directory: data/cmin_us/factor_embedding_cache
   factor_count: 5
   factor_input_dim: 3072

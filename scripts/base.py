@@ -45,9 +45,7 @@ SINGLE_LOGIT_SECTION_NAME = "single_logit_binary_classification"
 BINARY_CLASSIFICATION_SECTION_NAME = "binary_classification"
 BASE_CONFIG_FILE_FIELD_NAME = "base_config_file"
 OVERRIDES_FIELD_NAME = "overrides"
-LOGGER = configure_logger(
-    "run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_adapter_single_logit"
-)
+LOGGER = configure_logger("priorstock.base")
 
 
 class PriorStockOHLCV124GroupedReturnAwareSingleLogitDataset(PriorStockOHLCV124GroupedDataset):
@@ -372,7 +370,6 @@ def _parse_single_logit_objective_config(raw_section: object) -> SingleLogitBina
         "checkpoint_selection_epoch_limit",
         "should_evaluate_full_splits_each_epoch",
         "omitted_evaluation_iterator_count",
-        "fixed_checkpoint_epoch",
     }
     raw_field_names = set(raw_section.keys())
     missing_field_names = sorted(expected_field_names - raw_field_names)
@@ -476,7 +473,6 @@ def _parse_single_logit_objective_config(raw_section: object) -> SingleLogitBina
         omitted_evaluation_iterator_count=int(
             raw_section.get("omitted_evaluation_iterator_count", 0)
         ),
-        fixed_checkpoint_epoch=int(raw_section.get("fixed_checkpoint_epoch", 0)),
     )
     if objective_config.return_soft_label_temperature <= 0.0:
         raise ConfigurationError(
@@ -502,7 +498,7 @@ def _parse_single_logit_objective_config(raw_section: object) -> SingleLogitBina
         raise ConfigurationError(
             "single_logit_binary_classification.checkpoint_selection_accuracy_weight must be non-negative."
         )
-    supported_selection_split_names = {"validation", "test", "validation_full", "test_full"}
+    supported_selection_split_names = {"validation", "validation_full"}
     if objective_config.checkpoint_selection_split_name not in supported_selection_split_names:
         raise ConfigurationError(
             "single_logit_binary_classification.checkpoint_selection_split_name must be one of "
@@ -695,7 +691,6 @@ def _write_single_logit_labeling_contract(
             "should_evaluate_unfiltered_test_split": objective_config.should_evaluate_unfiltered_test_split,
             "should_evaluate_full_splits_each_epoch": objective_config.should_evaluate_full_splits_each_epoch,
             "omitted_evaluation_iterator_count": objective_config.omitted_evaluation_iterator_count,
-            "fixed_checkpoint_epoch": objective_config.fixed_checkpoint_epoch,
             "return_soft_label_temperature": objective_config.return_soft_label_temperature,
             "significant_return_absolute_threshold": objective_config.significant_return_absolute_threshold,
             "raw_effective_close_column_name": experiment_config.data.effective_close_column_name,
@@ -798,21 +793,14 @@ def main() -> None:
     )
     should_build_full_epoch_loaders = (
         objective_config.should_evaluate_full_splits_each_epoch
-        or objective_config.checkpoint_selection_split_name in {"validation_full", "test_full"}
+        or objective_config.checkpoint_selection_split_name == "validation_full"
     )
     validation_full_data_loader = None
-    test_full_data_loader = None
     if should_build_full_epoch_loaders:
         validation_full_data_loader = _build_data_loader(
             experiment_config,
             full_objective_config,
             "validation",
-            should_shuffle=False,
-        )
-        test_full_data_loader = _build_data_loader(
-            experiment_config,
-            full_objective_config,
-            "test",
             should_shuffle=False,
         )
     training_summary = fit_single_logit_binary_model(
@@ -822,14 +810,12 @@ def main() -> None:
         ),
         train_data_loader=train_data_loader,
         validation_data_loader=validation_data_loader,
-        checkpoint_selection_data_loader=test_data_loader,
         experiment_config=experiment_config,
         objective_config=objective_config,
         run_directory=run_directory,
         wandb_run=wandb_run,
         should_finish_wandb_run=False,
         validation_full_data_loader=validation_full_data_loader,
-        test_full_data_loader=test_full_data_loader,
         full_objective_config=full_objective_config,
     )
     checkpoint_file_path = run_directory / experiment_config.paths.checkpoint_subdirectory / "best_model.pt"

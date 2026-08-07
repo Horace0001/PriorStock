@@ -1,0 +1,36 @@
+{
+  "cmin_cn": {
+    "base": {
+      "epoch": 2,
+      "file": "cmin_cn/base.pt",
+      "sha256": "a66bf39a5cdb1c82966294d9418c4fe4b0372589b41300c6118631d34aaedf40"
+    },
+    "factor": {
+      "epoch": 3,
+      "file": "cmin_cn/factor.pt",
+      "sha256": "8ed4181d52377e35e59109a01ccf4afe6d056fce2633693cd54b60cb48aca0c9"
+    },
+    "noise_aware": {
+      "epoch": 1,
+      "file": "cmin_cn/noise_aware.pt",
+      "sha256": "849f98706c5a27ae3d93d68dc06408eae9c3dff11bb22fab88f80ddfe4ffd4a4"
+    }
+  },
+  "cmin_us": {
+    "base": {
+      "epoch": 3,
+      "file": "cmin_us/base.pt",
+      "sha256": "65936f85fc53086af241d64ae9674a28dcd240ba3dc08730030327a69f08fa57"
+    },
+    "factor": {
+      "epoch": 2,
+      "file": "cmin_us/factor.pt",
+      "sha256": "c2f00431acc0e9f84bd004c9ac69771588565dc9e8f6809b1357cb76ef7faf53"
+    },
+    "noise_aware": {
+      "epoch": 10,
+      "file": "cmin_us/noise_aware.pt",
+      "sha256": "6f8868553bee003a08c0dc27c52bfb9aa1887d5d9434dbef7ae7c610677cec91"
+    }
+  }
+}

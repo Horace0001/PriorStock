@@ -70,7 +70,6 @@ class SingleLogitBinaryObjectiveConfig:
     checkpoint_selection_epoch_limit: int = 0
     should_evaluate_full_splits_each_epoch: bool = False
     omitted_evaluation_iterator_count: int = 0
-    fixed_checkpoint_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -532,25 +531,18 @@ def should_consider_checkpoint_selection_epoch(
 
 def select_single_logit_checkpoint_metrics(
     validation_metrics: dict[str, float],
-    test_metrics: dict[str, float] | None,
     objective_config: SingleLogitBinaryObjectiveConfig,
     validation_full_metrics: dict[str, float] | None = None,
-    test_full_metrics: dict[str, float] | None = None,
 ) -> SingleLogitCheckpointSelection:
     """Select the metrics dictionary used for single-logit checkpoint monitoring."""
 
     split_name = objective_config.checkpoint_selection_split_name
     metrics_by_split_name = {
         "validation": validation_metrics,
-        "test": test_metrics,
         "validation_full": validation_full_metrics,
-        "test_full": test_full_metrics,
     }
     if split_name not in metrics_by_split_name:
-        raise ValueError(
-            "checkpoint_selection_split_name must be one of 'validation', 'test', "
-            "'validation_full', or 'test_full'."
-        )
+        raise ValueError("checkpoint_selection_split_name must be 'validation' or 'validation_full'.")
     metrics = metrics_by_split_name[split_name]
     if metrics is None:
         raise ValueError(f"{split_name} checkpoint selection requires {split_name}_metrics.")
@@ -874,9 +866,7 @@ def fit_single_logit_binary_model(
     run_directory: Path,
     wandb_run=None,
     should_finish_wandb_run: bool = True,
-    checkpoint_selection_data_loader=None,
     validation_full_data_loader=None,
-    test_full_data_loader=None,
     full_objective_config: SingleLogitBinaryObjectiveConfig | None = None,
 ) -> dict:
     """Train a single-logit binary model with return-aware BCE and persist the best checkpoint."""
@@ -998,14 +988,9 @@ def fit_single_logit_binary_model(
             wandb_run=wandb_run,
         )
         validation_full_metrics = None
-        test_full_metrics = None
         should_evaluate_validation_full = (
             objective_config.should_evaluate_full_splits_each_epoch
             or objective_config.checkpoint_selection_split_name == "validation_full"
-        )
-        should_evaluate_test_full = (
-            objective_config.should_evaluate_full_splits_each_epoch
-            or objective_config.checkpoint_selection_split_name == "test_full"
         )
         if should_evaluate_validation_full:
             if validation_full_data_loader is None:
@@ -1028,53 +1013,6 @@ def fit_single_logit_binary_model(
                 ),
                 wandb_run=wandb_run,
             )
-        test_metrics = None
-        should_evaluate_test_significant = (
-            objective_config.should_evaluate_full_splits_each_epoch
-            or objective_config.checkpoint_selection_split_name == "test"
-        )
-        if should_evaluate_test_significant:
-            if checkpoint_selection_data_loader is None:
-                raise ValueError("test evaluation requires checkpoint_selection_data_loader.")
-            test_metrics = run_single_logit_binary_epoch(
-                model=model,
-                data_loader=checkpoint_selection_data_loader,
-                positive_class_weight=positive_class_weight,
-                optimizer=None,
-                experiment_config=experiment_config,
-                objective_config=objective_config,
-                device=device,
-                split_name="test",
-                epoch_index=epoch_index,
-                diagnostics_file_path=_build_epoch_diagnostics_file_path(
-                    run_directory=run_directory,
-                    experiment_config=experiment_config,
-                    split_name="test",
-                    epoch_index=epoch_index,
-                ),
-                wandb_run=wandb_run,
-            )
-        if should_evaluate_test_full:
-            if test_full_data_loader is None:
-                raise ValueError("test_full evaluation requires test_full_data_loader.")
-            test_full_metrics = run_single_logit_binary_epoch(
-                model=model,
-                data_loader=test_full_data_loader,
-                positive_class_weight=positive_class_weight,
-                optimizer=None,
-                experiment_config=experiment_config,
-                objective_config=full_eval_objective_config,
-                device=device,
-                split_name="test_full",
-                epoch_index=epoch_index,
-                diagnostics_file_path=_build_epoch_diagnostics_file_path(
-                    run_directory=run_directory,
-                    experiment_config=experiment_config,
-                    split_name="test_full",
-                    epoch_index=epoch_index,
-                ),
-                wandb_run=wandb_run,
-            )
         for _ in range(objective_config.omitted_evaluation_iterator_count):
             torch.empty((), dtype=torch.int64).random_().item()
         if device.type == "cuda":
@@ -1082,10 +1020,8 @@ def fit_single_logit_binary_model(
         scheduler.step()
         checkpoint_selection = select_single_logit_checkpoint_metrics(
             validation_metrics=validation_metrics,
-            test_metrics=test_metrics,
             objective_config=objective_config,
             validation_full_metrics=validation_full_metrics,
-            test_full_metrics=test_full_metrics,
         )
         checkpoint_selection_score = checkpoint_selection.score
         should_consider_epoch = should_consider_checkpoint_selection_epoch(
@@ -1106,14 +1042,8 @@ def fit_single_logit_binary_model(
             "validation_checkpoint_selection_score": checkpoint_selection_score,
             "learning_rates": [parameter_group["lr"] for parameter_group in optimizer.param_groups],
         }
-        if test_metrics is not None:
-            history_record["test"] = test_metrics
-            if objective_config.checkpoint_selection_split_name == "test":
-                history_record["test_checkpoint_selection"] = test_metrics
         if validation_full_metrics is not None:
             history_record["validation_full"] = validation_full_metrics
-        if test_full_metrics is not None:
-            history_record["test_full"] = test_full_metrics
         history.append(history_record)
         LOGGER.info(
             "Epoch %03d | lr_base=%.8f | lr_adapter=%.8f | adapter_frozen=%s | checkpoint_selection[%s=%.6f split=%s in_window=%s] | train[%s] | validation[%s]",
@@ -1140,22 +1070,9 @@ def fit_single_logit_binary_model(
                 **{f"train/{key}": value for key, value in train_metrics.items()},
                 **{f"validation/{key}": value for key, value in validation_metrics.items()},
             }
-            if test_metrics is not None:
-                log_payload.update({f"test/{key}": value for key, value in test_metrics.items()})
-                if objective_config.checkpoint_selection_split_name == "test":
-                    log_payload.update(
-                        {
-                            f"test_checkpoint_selection/{key}": value
-                            for key, value in test_metrics.items()
-                        }
-                    )
             if validation_full_metrics is not None:
                 log_payload.update(
                     {f"validation_full/{key}": value for key, value in validation_full_metrics.items()}
-                )
-            if test_full_metrics is not None:
-                log_payload.update(
-                    {f"test_full/{key}": value for key, value in test_full_metrics.items()}
                 )
             _safe_wandb_log(
                 wandb_run=wandb_run,

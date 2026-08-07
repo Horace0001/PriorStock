@@ -330,9 +330,8 @@ single_logit_binary_classification:
   checkpoint_selection_epoch_limit: 0
   should_evaluate_full_splits_each_epoch: false
   omitted_evaluation_iterator_count: 2
-  fixed_checkpoint_epoch: 0
 factor_concat_logit_classifier:
-  base_checkpoint_file_path: weights/cmin_cn/base.pt
+  base_checkpoint_file_path: runs/cmin_cn/base/checkpoints/best_model.pt
   factor_embedding_cache_directory: data/cmin_cn/factor_embedding_cache
   factor_count: 5
   factor_input_dim: 3072

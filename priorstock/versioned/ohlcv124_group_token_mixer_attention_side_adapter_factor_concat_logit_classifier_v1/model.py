@@ -48,7 +48,6 @@ class FactorConcatLogitClassifierConfig:
     soft_mcc_loss_weight: float = 0.0
     soft_metric_loss_epsilon: float = 1.0e-8
     factor_projection_mode: str = FACTOR_PROJECTION_MODE_MLP_THEN_ADD_RANK
-    should_use_technical_only_ablation: bool = False
 
 
 class FactorPostAttentionFeedForwardBlock(nn.Module):
@@ -231,11 +230,6 @@ class FactorConcatLogitClassifierV1(nn.Module):
 
         del news_embeddings
         del has_news
-        should_use_technical_only_ablation = getattr(
-            self.config,
-            "should_use_technical_only_ablation",
-            False,
-        )
         should_use_base_output_cache = (
             not self.config.should_train_base_model and sample_ids is not None
         )
@@ -287,50 +281,34 @@ class FactorConcatLogitClassifierV1(nn.Module):
         technical_representation = base_output.technical_indicator_representation
         has_factors_bool = has_factors.to(dtype=torch.bool)
         has_any_factor = has_factors_bool.any(dim=1, keepdim=True)
-        if should_use_technical_only_ablation:
-            attention_context = torch.zeros_like(technical_representation)
-            factor_context = torch.zeros_like(technical_representation)
-            attention_weights = torch.zeros(
-                technical_representation.shape[0],
-                self.factor_attention.num_heads,
-                1,
-                self.config.factor_count,
-                dtype=technical_representation.dtype,
-                device=technical_representation.device,
-            )
-        else:
-            factor_tokens = self._project_factor_tokens(factor_embeddings)
-            key_padding_mask = ~has_factors_bool
-            safe_key_padding_mask = torch.where(
-                has_any_factor,
-                key_padding_mask,
-                torch.zeros_like(key_padding_mask),
-            )
-            query = self.query_layer_norm(technical_representation).unsqueeze(1)
-            attention_output, attention_weights = self.factor_attention(
-                query=query,
-                key=factor_tokens,
-                value=factor_tokens,
-                key_padding_mask=safe_key_padding_mask,
-                need_weights=True,
-                average_attn_weights=False,
-            )
-            attention_context = attention_output.squeeze(1)
-            factor_context = (
-                self.factor_transformer_ffn(attention_context)
-                if self.factor_transformer_ffn is not None
-                else attention_context
-            )
+        factor_tokens = self._project_factor_tokens(factor_embeddings)
+        key_padding_mask = ~has_factors_bool
+        safe_key_padding_mask = torch.where(
+            has_any_factor,
+            key_padding_mask,
+            torch.zeros_like(key_padding_mask),
+        )
+        query = self.query_layer_norm(technical_representation).unsqueeze(1)
+        attention_output, attention_weights = self.factor_attention(
+            query=query,
+            key=factor_tokens,
+            value=factor_tokens,
+            key_padding_mask=safe_key_padding_mask,
+            need_weights=True,
+            average_attn_weights=False,
+        )
+        attention_context = attention_output.squeeze(1)
+        factor_context = (
+            self.factor_transformer_ffn(attention_context)
+            if self.factor_transformer_ffn is not None
+            else attention_context
+        )
         classifier_logits = self.classifier_head(
             technical_representation=technical_representation,
             factor_context=factor_context,
             base_logits=base_output.logits,
         )
-        final_logits = (
-            classifier_logits
-            if should_use_technical_only_ablation
-            else torch.where(has_any_factor, classifier_logits, base_output.logits)
-        )
+        final_logits = torch.where(has_any_factor, classifier_logits, base_output.logits)
         delta_logit = final_logits - base_output.logits
         diagnostics = self._build_diagnostics(
             base_output=base_output,

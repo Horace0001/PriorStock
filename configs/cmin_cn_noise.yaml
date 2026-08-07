@@ -242,7 +242,7 @@ training:
   batch_size: 64
   num_data_loader_workers: 0
   pin_memory: true
-  num_epochs: 1
+  num_epochs: 40
   learning_rate: 0.0001
   minimum_learning_rate: 1.0e-06
   scheduler_cosine_t_max_epoch_count: 40
@@ -264,7 +264,7 @@ training:
   resume_from_latest_checkpoint: true
   latest_checkpoint_file_name: latest_training_state.pt
   gradient_clip_max_norm: 1.0
-  early_stopping_patience: 1
+  early_stopping_patience: 10
 evaluation:
   primary_metric_name: mcc
   checkpoint_selection_uses_composite_score: true
@@ -330,7 +330,7 @@ single_logit_binary_classification:
   checkpoint_selection_epoch_limit: 0
   should_evaluate_full_splits_each_epoch: false
 factor_concat_logit_classifier:
-  base_checkpoint_file_path: weights/cmin_cn/base.pt
+  base_checkpoint_file_path: runs/cmin_cn/base/checkpoints/best_model.pt
   factor_embedding_cache_directory: data/cmin_cn/factor_embedding_cache
   factor_count: 5
   factor_input_dim: 3072
@@ -349,15 +349,13 @@ factor_noise_aware_training:
   boundary_margin_loss_weight: 0.05
   factor_learning_rate: 2.0e-05
   classifier_learning_rate: 2.0e-05
-  checkpoint_selection_split_name: validation_significant
+  checkpoint_selection_split_name: validation_full
   checkpoint_selection_metric_name: selection_score
   checkpoint_selection_mcc_weight: 1.0
   checkpoint_selection_accuracy_weight: 0.0
   should_evaluate_full_splits_each_epoch: false
-  should_evaluate_test_significant_each_epoch: false
   significant_soft_mcc_loss_weight: 0.03
   mid_return_soft_mcc_loss_weight: 0.03
   mid_return_soft_balanced_accuracy_loss_weight: 0.03
   soft_metric_loss_epsilon: 1.0e-08
-  fixed_checkpoint_epoch: 1
   omitted_evaluation_iterator_count: 2

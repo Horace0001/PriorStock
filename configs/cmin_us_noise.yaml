@@ -330,7 +330,7 @@ single_logit_binary_classification:
   checkpoint_selection_epoch_limit: 0
   should_evaluate_full_splits_each_epoch: false
 factor_concat_logit_classifier:
-  base_checkpoint_file_path: weights/cmin_us/base.pt
+  base_checkpoint_file_path: runs/cmin_us/base/checkpoints/best_model.pt
   factor_embedding_cache_directory: data/cmin_us/factor_embedding_cache
   factor_count: 5
   factor_input_dim: 3072
@@ -349,15 +349,9 @@ factor_noise_aware_training:
   boundary_margin_loss_weight: 0.05
   factor_learning_rate: 2.0e-05
   classifier_learning_rate: 2.0e-05
-  checkpoint_selection_split_name: validation_significant
-  checkpoint_selection_metric_name: selection_score
-  checkpoint_selection_mcc_weight: 1.0
-  checkpoint_selection_accuracy_weight: 0.0
   should_evaluate_full_splits_each_epoch: false
-  should_evaluate_test_significant_each_epoch: false
   significant_soft_mcc_loss_weight: 0.03
   mid_return_soft_mcc_loss_weight: 0.03
   mid_return_soft_balanced_accuracy_loss_weight: 0.03
   soft_metric_loss_epsilon: 1.0e-08
-  fixed_checkpoint_epoch: 10
   omitted_evaluation_iterator_count: 3

@@ -38,7 +38,7 @@ from priorstock.utils.seed import set_global_seed
 from priorstock.versioned.ohlcv124_group_token_mixer_attention_side_adapter_factor_concat_logit_classifier_v1 import (
     FactorConcatLogitClassifierV1,
 )
-from scripts.run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_adapter_factor_concat_logit_classifier_single_logit import (
+from scripts.factor import (
     FACTOR_CONCAT_CLASSIFIER_SECTION_NAME,
     _build_data_loader,
     _build_model,
@@ -53,7 +53,7 @@ from scripts.run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_ad
     _parse_factor_concat_classifier_config,
     _set_requires_grad,
 )
-from scripts.run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_adapter_single_logit import (
+from scripts.base import (
     ATTENTION_SIDE_ADAPTER_SECTION_NAME,
     BINARY_CLASSIFICATION_SECTION_NAME,
     SINGLE_LOGIT_SECTION_NAME,
@@ -73,13 +73,9 @@ EXPECTED_FRAMEWORK_VARIANT_NAME = (
 )
 NOISE_AWARE_SECTION_NAME = "factor_noise_aware_training"
 VALIDATION_SIGNIFICANT_SPLIT_NAME = "validation_significant"
-TEST_SIGNIFICANT_SPLIT_NAME = "test_significant"
 VALIDATION_FULL_SPLIT_NAME = "validation_full"
-TEST_FULL_SPLIT_NAME = "test_full"
 MCC_ACCURACY_SELECTION_SCORE_NAME = "mcc_accuracy_selection_score"
-LOGGER = configure_logger(
-    "run_train_and_evaluate_ohlcv124_group_token_mixer_attention_side_adapter_factor_concat_logit_classifier_noise_aware_single_logit"
-)
+LOGGER = configure_logger("priorstock.noise_aware")
 
 
 @dataclass(frozen=True)
@@ -94,19 +90,16 @@ class FactorNoiseAwareTrainingConfig:
     boundary_margin_loss_weight: float
     factor_learning_rate: float
     classifier_learning_rate: float
-    checkpoint_selection_split_name: str = VALIDATION_SIGNIFICANT_SPLIT_NAME
+    checkpoint_selection_split_name: str | None = None
     checkpoint_selection_mcc_weight: float = 0.7
     checkpoint_selection_accuracy_weight: float = 0.3
     checkpoint_selection_metric_name: str = "auto"
-    frozen_base_probe_epoch_count: int = 0
     base_checkpoint_file_path: str | None = None
     should_evaluate_full_splits_each_epoch: bool = False
-    should_evaluate_test_significant_each_epoch: bool = True
     significant_soft_mcc_loss_weight: float = 0.0
     mid_return_soft_mcc_loss_weight: float = 0.0
     mid_return_soft_balanced_accuracy_loss_weight: float = 0.0
     soft_metric_loss_epsilon: float = 1.0e-8
-    fixed_checkpoint_epoch: int | None = None
     omitted_evaluation_iterator_count: int = 0
 
 
@@ -264,14 +257,11 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
         "checkpoint_selection_mcc_weight",
         "checkpoint_selection_accuracy_weight",
         "checkpoint_selection_metric_name",
-        "frozen_base_probe_epoch_count",
         "should_evaluate_full_splits_each_epoch",
-        "should_evaluate_test_significant_each_epoch",
         "significant_soft_mcc_loss_weight",
         "mid_return_soft_mcc_loss_weight",
         "mid_return_soft_balanced_accuracy_loss_weight",
         "soft_metric_loss_epsilon",
-        "fixed_checkpoint_epoch",
         "omitted_evaluation_iterator_count",
     }
     provided_field_names = set(raw_section.keys())
@@ -321,11 +311,10 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
             raw_section["classifier_learning_rate"],
             "classifier_learning_rate",
         ),
-        checkpoint_selection_split_name=str(
-            raw_section.get(
-                "checkpoint_selection_split_name",
-                VALIDATION_SIGNIFICANT_SPLIT_NAME,
-            )
+        checkpoint_selection_split_name=(
+            str(raw_section["checkpoint_selection_split_name"])
+            if "checkpoint_selection_split_name" in raw_section
+            else None
         ),
         checkpoint_selection_mcc_weight=_coerce_float(
             raw_section.get("checkpoint_selection_mcc_weight", 0.7),
@@ -336,10 +325,6 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
             "checkpoint_selection_accuracy_weight",
         ),
         checkpoint_selection_metric_name=str(raw_section.get("checkpoint_selection_metric_name", "auto")),
-        frozen_base_probe_epoch_count=_coerce_int(
-            raw_section.get("frozen_base_probe_epoch_count", 0),
-            "frozen_base_probe_epoch_count",
-        ),
         base_checkpoint_file_path=(
             str(raw_section["base_checkpoint_file_path"])
             if "base_checkpoint_file_path" in raw_section
@@ -348,10 +333,6 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
         should_evaluate_full_splits_each_epoch=_coerce_bool(
             raw_section.get("should_evaluate_full_splits_each_epoch", False),
             "should_evaluate_full_splits_each_epoch",
-        ),
-        should_evaluate_test_significant_each_epoch=_coerce_bool(
-            raw_section.get("should_evaluate_test_significant_each_epoch", True),
-            "should_evaluate_test_significant_each_epoch",
         ),
         significant_soft_mcc_loss_weight=_coerce_float(
             raw_section.get("significant_soft_mcc_loss_weight", 0.0),
@@ -368,11 +349,6 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
         soft_metric_loss_epsilon=_coerce_float(
             raw_section.get("soft_metric_loss_epsilon", 1.0e-8),
             "soft_metric_loss_epsilon",
-        ),
-        fixed_checkpoint_epoch=(
-            _coerce_int(raw_section["fixed_checkpoint_epoch"], "fixed_checkpoint_epoch")
-            if "fixed_checkpoint_epoch" in raw_section
-            else None
         ),
         omitted_evaluation_iterator_count=_coerce_int(
             raw_section.get("omitted_evaluation_iterator_count", 0),
@@ -401,23 +377,16 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
         raise ConfigurationError("noise-aware learning rates must be positive.")
     supported_selection_split_names = {
         VALIDATION_SIGNIFICANT_SPLIT_NAME,
-        TEST_SIGNIFICANT_SPLIT_NAME,
         VALIDATION_FULL_SPLIT_NAME,
-        TEST_FULL_SPLIT_NAME,
     }
-    if config.checkpoint_selection_split_name not in supported_selection_split_names:
+    if (
+        config.checkpoint_selection_split_name is not None
+        and config.checkpoint_selection_split_name not in supported_selection_split_names
+    ):
         raise ConfigurationError(
             "checkpoint_selection_split_name must be one of "
             + ", ".join(sorted(supported_selection_split_names))
             + "."
-        )
-    if (
-        config.checkpoint_selection_split_name == TEST_SIGNIFICANT_SPLIT_NAME
-        and not config.should_evaluate_test_significant_each_epoch
-    ):
-        raise ConfigurationError(
-            "test_significant checkpoint selection requires "
-            "should_evaluate_test_significant_each_epoch=true."
         )
     if config.checkpoint_selection_mcc_weight < 0.0 or config.checkpoint_selection_accuracy_weight < 0.0:
         raise ConfigurationError("checkpoint selection weights must be non-negative.")
@@ -439,10 +408,6 @@ def _parse_noise_aware_training_config(raw_section: object) -> FactorNoiseAwareT
             + ", ".join(sorted(supported_selection_metric_names))
             + "."
         )
-    if config.frozen_base_probe_epoch_count < 0:
-        raise ConfigurationError("frozen_base_probe_epoch_count must be non-negative.")
-    if config.fixed_checkpoint_epoch is not None and config.fixed_checkpoint_epoch <= 0:
-        raise ConfigurationError("fixed_checkpoint_epoch must be positive.")
     return config
 
 
@@ -473,35 +438,9 @@ def _resolve_noise_aware_checkpoint_selection_metric_name(
 
     if noise_aware_config.checkpoint_selection_metric_name != "auto":
         return noise_aware_config.checkpoint_selection_metric_name
-    if noise_aware_config.checkpoint_selection_split_name == TEST_SIGNIFICANT_SPLIT_NAME:
-        return MCC_ACCURACY_SELECTION_SCORE_NAME
-    if noise_aware_config.checkpoint_selection_split_name == TEST_FULL_SPLIT_NAME:
-        return "accuracy"
+    if noise_aware_config.checkpoint_selection_split_name is None:
+        return "selection_score"
     return "selection_score"
-
-
-def _find_best_epoch_record(
-    history: list[dict[str, Any]],
-    split_name: str,
-    score_name: str,
-    max_epoch: int | None = None,
-) -> dict[str, Any]:
-    """Return the history record with the highest split score, optionally inside a prefix."""
-
-    best_record: dict[str, Any] = {}
-    best_score = -float("inf")
-    for epoch_record in history:
-        epoch_index = int(epoch_record["epoch"])
-        if max_epoch is not None and epoch_index > max_epoch:
-            continue
-        split_metrics = epoch_record.get(split_name, {})
-        if score_name not in split_metrics:
-            continue
-        score = float(split_metrics[score_name])
-        if score > best_score:
-            best_score = score
-            best_record = epoch_record
-    return best_record
 
 
 def _load_config_with_noise_aware_extensions(config_file_path: Path, run_directory: Path):
@@ -958,7 +897,7 @@ def _save_checkpoint(
     validation_metrics: dict[str, float],
     checkpoint_selection_score: float | None = None,
     checkpoint_selection_metric_name: str = "selection_score",
-    checkpoint_selection_split_name: str = VALIDATION_SIGNIFICANT_SPLIT_NAME,
+    checkpoint_selection_split_name: str | None = VALIDATION_SIGNIFICANT_SPLIT_NAME,
 ) -> None:
     """Save a noise-aware fine-tuned checkpoint."""
 
@@ -988,8 +927,6 @@ def _fit_model(
     train_significant_loader: DataLoader,
     validation_significant_loader: DataLoader,
     validation_full_loader: DataLoader,
-    test_significant_loader: DataLoader,
-    test_full_loader: DataLoader,
     experiment_config,
     objective_config,
     full_objective_config,
@@ -1043,27 +980,12 @@ def _fit_model(
             split_name=f"validation_significant epoch={epoch_index:03d}",
             should_use_noise_aware_loss=False,
         )
-        test_metrics = None
-        if noise_aware_config.should_evaluate_test_significant_each_epoch:
-            test_metrics = _run_noise_aware_epoch(
-                model=model,
-                data_loader=test_significant_loader,
-                optimizer=None,
-                experiment_config=experiment_config,
-                objective_config=objective_config,
-                noise_aware_config=noise_aware_config,
-                positive_class_weight=positive_class_weight,
-                split_name=f"test_significant epoch={epoch_index:03d}",
-                should_use_noise_aware_loss=False,
-            )
         validation_full_metrics = None
-        test_full_metrics = None
-        should_evaluate_full_splits = (
+        should_evaluate_validation_full = (
             noise_aware_config.should_evaluate_full_splits_each_epoch
-            or noise_aware_config.checkpoint_selection_split_name
-            in {VALIDATION_FULL_SPLIT_NAME, TEST_FULL_SPLIT_NAME}
+            or noise_aware_config.checkpoint_selection_split_name == VALIDATION_FULL_SPLIT_NAME
         )
-        if should_evaluate_full_splits:
+        if should_evaluate_validation_full:
             validation_full_metrics = _run_noise_aware_epoch(
                 model=model,
                 data_loader=validation_full_loader,
@@ -1075,32 +997,19 @@ def _fit_model(
                 split_name=f"validation_full epoch={epoch_index:03d}",
                 should_use_noise_aware_loss=False,
             )
-            test_full_metrics = _run_noise_aware_epoch(
-                model=model,
-                data_loader=test_full_loader,
-                optimizer=None,
-                experiment_config=experiment_config,
-                objective_config=full_objective_config,
-                noise_aware_config=noise_aware_config,
-                positive_class_weight=positive_class_weight,
-                split_name=f"test_full epoch={epoch_index:03d}",
-                should_use_noise_aware_loss=False,
-            )
         omitted_iterator_count = noise_aware_config.omitted_evaluation_iterator_count
         for _ in range(omitted_iterator_count):
             torch.empty((), dtype=torch.int64).random_().item()
         selection_metrics_by_split = {
             VALIDATION_SIGNIFICANT_SPLIT_NAME: validation_metrics,
         }
-        if test_metrics is not None:
-            selection_metrics_by_split[TEST_SIGNIFICANT_SPLIT_NAME] = test_metrics
         if validation_full_metrics is not None:
             selection_metrics_by_split[VALIDATION_FULL_SPLIT_NAME] = validation_full_metrics
-        if test_full_metrics is not None:
-            selection_metrics_by_split[TEST_FULL_SPLIT_NAME] = test_full_metrics
-        checkpoint_selection_metrics = selection_metrics_by_split[
-            noise_aware_config.checkpoint_selection_split_name
-        ]
+        checkpoint_selection_metrics = (
+            validation_metrics
+            if noise_aware_config.checkpoint_selection_split_name is None
+            else selection_metrics_by_split[noise_aware_config.checkpoint_selection_split_name]
+        )
         checkpoint_selection_score = _compute_noise_aware_checkpoint_selection_score(
             checkpoint_selection_metrics,
             noise_aware_config,
@@ -1116,23 +1025,20 @@ def _fit_model(
             "epoch": epoch_index,
             "train_full": train_metrics,
             "validation_significant": validation_metrics,
-            "checkpoint_selection": {
-                "split_name": noise_aware_config.checkpoint_selection_split_name,
-                "score_name": checkpoint_selection_metric_name,
-                "score": checkpoint_selection_score,
-                "is_base_frozen": is_base_frozen,
-            },
             "learning_rates": {
                 str(parameter_group.get("name", f"group_{group_index}")): float(parameter_group["lr"])
                 for group_index, parameter_group in enumerate(optimizer.param_groups)
             },
         }
-        if test_metrics is not None:
-            epoch_record["test_significant"] = test_metrics
+        if noise_aware_config.checkpoint_selection_split_name is not None:
+            epoch_record["checkpoint_selection"] = {
+                "split_name": noise_aware_config.checkpoint_selection_split_name,
+                "score_name": checkpoint_selection_metric_name,
+                "score": checkpoint_selection_score,
+                "is_base_frozen": is_base_frozen,
+            }
         if validation_full_metrics is not None:
             epoch_record["validation_full"] = validation_full_metrics
-        if test_full_metrics is not None:
-            epoch_record["test_full"] = test_full_metrics
         history.append(epoch_record)
         _save_checkpoint(
             latest_checkpoint_file_path,
@@ -1145,8 +1051,8 @@ def _fit_model(
             checkpoint_selection_split_name=noise_aware_config.checkpoint_selection_split_name,
         )
         should_save_checkpoint = (
-            epoch_index == noise_aware_config.fixed_checkpoint_epoch
-            if noise_aware_config.fixed_checkpoint_epoch is not None
+            True
+            if noise_aware_config.checkpoint_selection_split_name is None
             else checkpoint_selection_score > best_checkpoint_selection_score
         )
         if should_save_checkpoint:
@@ -1163,7 +1069,7 @@ def _fit_model(
                 checkpoint_selection_metric_name=checkpoint_selection_metric_name,
                 checkpoint_selection_split_name=noise_aware_config.checkpoint_selection_split_name,
             )
-        elif noise_aware_config.fixed_checkpoint_epoch is None:
+        elif noise_aware_config.checkpoint_selection_split_name is not None:
             epochs_without_improvement += 1
         epoch_log_payload = {
             **{f"train_full/{key}": value for key, value in train_metrics.items()},
@@ -1179,72 +1085,63 @@ def _fit_model(
             "checkpoint_selection/best_score": best_checkpoint_selection_score,
             "checkpoint_selection/is_base_frozen": float(is_base_frozen),
         }
-        if test_metrics is not None:
-            epoch_log_payload.update(
-                {f"test_significant/{key}": value for key, value in test_metrics.items()}
-            )
         _safe_wandb_log(
             wandb_run,
             epoch_log_payload,
             log_context=f"noise-aware epoch {epoch_index}",
         )
-        if validation_full_metrics is not None or test_full_metrics is not None:
+        if validation_full_metrics is not None:
             full_split_log_payload = {}
-            if validation_full_metrics is not None:
-                full_split_log_payload.update(
-                    {f"validation_full/{key}": value for key, value in validation_full_metrics.items()}
-                )
-            if test_full_metrics is not None:
-                full_split_log_payload.update(
-                    {f"test_full/{key}": value for key, value in test_full_metrics.items()}
-                )
+            full_split_log_payload.update(
+                {f"validation_full/{key}": value for key, value in validation_full_metrics.items()}
+            )
             _safe_wandb_log(
                 wandb_run,
                 full_split_log_payload,
                 log_context=f"noise-aware full-split epoch {epoch_index}",
             )
-        LOGGER.info(
-            "Epoch %03d best_epoch=%03d best_%s_%s=%.6f current=%.6f no_improve=%d base_frozen=%s",
-            epoch_index,
-            best_epoch,
-            noise_aware_config.checkpoint_selection_split_name,
-            checkpoint_selection_metric_name,
-            best_checkpoint_selection_score,
-            checkpoint_selection_score,
-            epochs_without_improvement,
-            is_base_frozen,
-        )
-        if epochs_without_improvement >= experiment_config.training.early_stopping_patience:
+        if noise_aware_config.checkpoint_selection_split_name is None:
+            LOGGER.info(
+                "Epoch %03d final_epoch_checkpoint=%03d validation_score=%.6f base_frozen=%s",
+                epoch_index,
+                best_epoch,
+                checkpoint_selection_score,
+                is_base_frozen,
+            )
+        else:
+            LOGGER.info(
+                "Epoch %03d best_epoch=%03d best_%s_%s=%.6f current=%.6f no_improve=%d base_frozen=%s",
+                epoch_index,
+                best_epoch,
+                noise_aware_config.checkpoint_selection_split_name,
+                checkpoint_selection_metric_name,
+                best_checkpoint_selection_score,
+                checkpoint_selection_score,
+                epochs_without_improvement,
+                is_base_frozen,
+            )
+        if (
+            noise_aware_config.checkpoint_selection_split_name is not None
+            and epochs_without_improvement >= experiment_config.training.early_stopping_patience
+        ):
             LOGGER.info("Early stopping triggered at epoch %03d.", epoch_index)
             break
     if best_epoch == 0:
-        raise RuntimeError("The fixed checkpoint epoch was not reached.")
+        raise RuntimeError("No eligible checkpoint was selected.")
     write_json_file(run_directory / "training_history.json", history)
-    frozen_base_probe_best_record = _find_best_epoch_record(
-        history=history,
-        split_name=TEST_SIGNIFICANT_SPLIT_NAME,
-        score_name=_resolve_noise_aware_checkpoint_selection_metric_name(noise_aware_config),
-        max_epoch=(
-            noise_aware_config.frozen_base_probe_epoch_count
-            if noise_aware_config.frozen_base_probe_epoch_count > 0
-            else None
-        ),
-    )
     return {
         "best_epoch": best_epoch,
         "best_validation_score": best_checkpoint_selection_score,
-        "best_checkpoint_selection_score": best_checkpoint_selection_score,
+        "best_checkpoint_selection_score": (
+            best_checkpoint_selection_score
+            if noise_aware_config.checkpoint_selection_split_name is not None
+            else None
+        ),
         "checkpoint_selection_split_name": noise_aware_config.checkpoint_selection_split_name,
         "checkpoint_selection_metric_name": checkpoint_selection_metric_name,
         "history": history,
         "best_checkpoint_file_path": str(best_checkpoint_file_path),
         "positive_class_weight_from_significant_train": float(positive_class_weight.item()),
-        "frozen_base_probe_epoch_count": noise_aware_config.frozen_base_probe_epoch_count,
-        "frozen_base_probe_best_epoch": frozen_base_probe_best_record.get("epoch"),
-        "frozen_base_probe_best_test_score": frozen_base_probe_best_record.get(
-            TEST_SIGNIFICANT_SPLIT_NAME,
-            {},
-        ).get(_resolve_noise_aware_checkpoint_selection_metric_name(noise_aware_config)),
     }
 
 
@@ -1408,8 +1305,6 @@ def main() -> None:
         train_significant_loader=train_significant_loader,
         validation_significant_loader=validation_significant_loader,
         validation_full_loader=validation_full_loader,
-        test_significant_loader=test_significant_loader,
-        test_full_loader=test_full_loader,
         experiment_config=experiment_config,
         objective_config=objective_config,
         full_objective_config=full_objective_config,

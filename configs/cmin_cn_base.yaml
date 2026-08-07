@@ -330,4 +330,3 @@ single_logit_binary_classification:
   checkpoint_selection_epoch_limit: 0
   should_evaluate_full_splits_each_epoch: false
   omitted_evaluation_iterator_count: 2
-  fixed_checkpoint_epoch: 0
